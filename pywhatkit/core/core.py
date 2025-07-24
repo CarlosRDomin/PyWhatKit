@@ -1,12 +1,15 @@
 import os
 import pathlib
 import time
+from os import PathLike
 from platform import system
 from urllib.parse import quote
 from webbrowser import open
 
 import requests
+import pyperclip
 from pyautogui import click, hotkey, locateOnScreen, moveTo, press, size, typewrite
+from pyscreeze import Box, ImageNotFoundException, locate, screenshot
 
 from pywhatkit.core.exceptions import InternetException
 
@@ -30,19 +33,58 @@ def close_tab(wait_time: int = 2) -> None:
         hotkey("command", "w")
     else:
         raise Warning(f"{_system} not supported!")
-    press("enter")
+    press("enter")  # Is this needed?
 
 
-def findtextbox() -> None:
-    """click on text box"""
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    location = locateOnScreen(f"{dir_path}\\data\\pywhatkit_smile1.png")
-    try:
-        moveTo(location[0] + 150, location[1] + 5)
-        click()
-    except Exception:
-        location = locateOnScreen(f"{dir_path}\\data\\pywhatkit_smile.png")
-        moveTo(location[0] + 150, location[1] + 5)
+def _locate_on_screen(img_paths: list[PathLike]) -> Box | None:
+    """Wraps a call to locateOnScreen to ensure no exception is raised (None is
+    always returned if image not found)"""
+    # try:
+    #     return locateOnScreen(str(img_path))
+    # except ImageNotFoundException:
+    #     return None
+
+    if len(img_paths) == 0:
+        return None
+
+    # Reimplement pyscreeze.locateOnScreen to allow searching for multiple
+    # "needle" images in a single screenshot
+    screenshot_img = screenshot(region=None)
+    for img_path in img_paths:
+        try:
+            box = locate(str(img_path), screenshot_img)
+            if box is not None:
+                return box
+        except ImageNotFoundException:
+            pass
+    return None
+
+
+def find_textbox(
+    max_retries: int = 1, sleep_secs_between_retries: float = 1.0,
+) -> Box | None:
+    """Returns a position inside the textbox, if visible on the screen, or None"""
+    data_dir = pathlib.Path(__file__).resolve().parent / "data"
+    num_retries = 0
+    while True:
+        location = _locate_on_screen([data_dir / "sticker_dark.png", data_dir / "sticker_light.png"])
+        if location is not None:
+            return location
+        max_retries += 1
+        if max_retries > 0 and num_retries >= max_retries:
+            return None
+        time.sleep(sleep_secs_between_retries)
+
+
+def findtextbox(
+    max_retries: int = 1, sleep_secs_between_retries: float = 1.0,
+) -> None:
+    """Try to click on text box"""
+    location = find_textbox(max_retries, sleep_secs_between_retries)
+    if location is not None:
+        left = location.left + location.width + 50
+        top = location.top + location.height // 2
+        moveTo(left, top)
         click()
 
 
@@ -104,9 +146,10 @@ def send_message(message: str, receiver: str, wait_time: int) -> None:
     """Parses and Sends the Message"""
 
     _web(receiver=receiver, message=message)
-    time.sleep(7)
-    click(WIDTH / 2, HEIGHT / 2 + 15)
-    time.sleep(wait_time - 7)
+    time.sleep(7)  # Is this needed? Can it use wait_time?
+    click(WIDTH / 2, HEIGHT / 2 + 15)  # Is this needed?
+    if wait_time > 7:
+        time.sleep(wait_time - 7)
     if not check_number(number=receiver):
         for char in message:
             if char == "\n":
@@ -117,15 +160,13 @@ def send_message(message: str, receiver: str, wait_time: int) -> None:
     press("enter")
 
 
-def send_message_list(message: list, receiver: str, wait_time: int) -> None:
+def send_message_list(message: list[str], receiver: str) -> None:
     """Parse and send multiple messages to a number"""
-
-    _web(receiver=receiver, message='')
-    time.sleep(7)
-    click(WIDTH / 2, HEIGHT / 2 + 15)
-    time.sleep(wait_time - 7)
+    _web(receiver=receiver, message="")
+    findtextbox(max_retries=-1)  # Wait until the textbox is selected
     for msg in message:
-        typewrite(msg)
+        pyperclip.copy(msg)
+        paste_clipboard()  # TODO: Do we need to sleep in between?
         press("enter")
 
 
@@ -186,10 +227,15 @@ def send_image(path: str, caption: str, receiver: str, wait_time: int) -> None:
                 typewrite(char)
     else:
         typewrite(" ")
-    if system().lower() == "darwin":
-        hotkey("command", "v")
-    else:
-        hotkey("ctrl", "v")
+    paste_clipboard()
     time.sleep(1)
     findtextbox()
     press("enter")
+
+
+def paste_clipboard() -> None:
+    """Pastes the clipboard contents into the active textbox"""
+    if system().lower() == "darwin":
+        hotkey("command", "v", interval=0.25)
+    else:
+        hotkey("ctrl", "v")
