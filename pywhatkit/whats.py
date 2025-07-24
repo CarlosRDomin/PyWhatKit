@@ -19,7 +19,6 @@ core.check_connection()
 def sendwhatmsg_instantly(
         phone_no: str,
         message: str,
-        wait_time: int = 15,
         tab_close: bool = False,
         close_time: int = 3,
 ) -> None:
@@ -27,10 +26,7 @@ def sendwhatmsg_instantly(
     phone_no = sanitize_phone_number(phone_no)
 
     web.open(f"https://web.whatsapp.com/send?phone={phone_no}&text={quote(message)}")
-    time.sleep(4)
-    pg.click(core.WIDTH / 2, core.HEIGHT / 2 + 15)
-    time.sleep(wait_time - 4)
-    core.findtextbox()
+    core.findtextbox(max_retries=-1)
     pg.press("enter")
     log.log_message(_time=time.localtime(), receiver=phone_no, message=message)
     if tab_close:
