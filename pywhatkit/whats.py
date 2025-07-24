@@ -5,7 +5,6 @@ from datetime import datetime
 from re import fullmatch
 from typing import List
 from urllib.parse import quote
-import paperclip
 import pyautogui as pg
 import pyperclip
 import keyboard
@@ -25,13 +24,7 @@ def sendwhatmsg_instantly(
         close_time: int = 3,
 ) -> None:
     """Send WhatsApp Message Instantly"""
-
-    if not core.check_number(number=phone_no):
-        raise exceptions.CountryCodeException("Country Code Missing in Phone Number!")
-
-    phone_no = phone_no.replace(" ", "")
-    if not fullmatch(r"^\+?[0-9]{2,4}\s?[0-9]{9,15}", phone_no):
-        raise exceptions.InvalidPhoneNumber("Invalid Phone Number.")
+    phone_no = sanitize_phone_number(phone_no)
 
     web.open(f"https://web.whatsapp.com/send?phone={phone_no}&text={quote(message)}")
     time.sleep(4)
@@ -52,13 +45,7 @@ def sendimg_or_video_immediately(
         close_time: int = 3,
 ) -> None:
     """Send WhatsApp Message Instantly"""
-
-    if not core.check_number(number=phone_no):
-        raise exceptions.CountryCodeException("Country Code Missing in Phone Number!")
-
-    phone_no = phone_no.replace(" ", "")
-    if not fullmatch(r"^\+?[0-9]{2,4}\s?[0-9]{9,15}", phone_no):
-        raise exceptions.InvalidPhoneNumber("Invalid Phone Number.")
+    phone_no = sanitize_phone_number(phone_no)
 
     web.open(f"https://web.whatsapp.com/send?phone={phone_no}")
     time.sleep(wait_time)
@@ -91,13 +78,7 @@ def sendwhatdoc_immediately(
         close_time: int = 3,
 ) -> None:
     """Send WhatsApp Message Instantly"""
-
-    if not core.check_number(number=phone_no):
-        raise exceptions.CountryCodeException("Country Code Missing in Phone Number!")
-
-    phone_no = phone_no.replace(" ", "")
-    if not fullmatch(r"^\+?[0-9]{2,4}\s?[0-9]{9,15}", phone_no):
-        raise exceptions.InvalidPhoneNumber("Invalid Phone Number.")
+    phone_no = sanitize_phone_number(phone_no)
 
     web.open(f"https://web.whatsapp.com/send?phone={phone_no}")
     time.sleep(wait_time)
@@ -131,12 +112,7 @@ def sendwhatmsg(
         close_time: int = 3,
 ) -> None:
     """Send a WhatsApp Message at a Certain Time"""
-    if not core.check_number(number=phone_no):
-        raise exceptions.CountryCodeException("Country Code Missing in Phone Number!")
-
-    phone_no = phone_no.replace(" ", "")
-    if not fullmatch(r'^\+?[0-9]{2,4}\s?[0-9]{9,15}', phone_no):
-        raise exceptions.InvalidPhoneNumber("Invalid Phone Number.")
+    phone_no = sanitize_phone_number(phone_no)
 
     if time_hour not in range(25) or time_min not in range(60):
         raise Warning("Invalid Time Format!")
@@ -160,7 +136,7 @@ def sendwhatmsg(
     )
     time.sleep(sleep_time)
     if isinstance(message, list):
-        core.send_message_list(message=message, receiver=phone_no, wait_time=wait_time)
+        core.send_message_list(message=message, receiver=phone_no, wait_time=wait_time)  # Log missing
     else:
         core.send_message(message=message, receiver=phone_no, wait_time=wait_time)
         log.log_message(_time=current_time, receiver=phone_no, message=message)
@@ -201,10 +177,13 @@ def sendwhatmsg_to_group(
         f"In {sleep_time} Seconds WhatsApp will open and after {wait_time} Seconds Message will be Delivered!"
     )
     time.sleep(sleep_time)
-    core.send_message(message=message, receiver=group_id, wait_time=wait_time)
-    log.log_message(_time=current_time, receiver=group_id, message=message)
-    if tab_close:
-        core.close_tab(wait_time=close_time)
+    sendwhatmsg_to_group_instantly(
+        group_id=group_id,
+        message=message,
+        wait_time=wait_time,
+        tab_close=tab_close,
+        close_time=close_time,
+    )
 
 
 def sendwhatmsg_to_group_instantly(
@@ -216,10 +195,8 @@ def sendwhatmsg_to_group_instantly(
 ) -> None:
     """Send WhatsApp Message to a Group Instantly"""
 
-    current_time = time.localtime()
-    time.sleep(4)
     core.send_message(message=message, receiver=group_id, wait_time=wait_time)
-    log.log_message(_time=current_time, receiver=group_id, message=message)
+    log.log_message(_time=time.localtime(), receiver=group_id, message=message)
     if tab_close:
         core.close_tab(wait_time=close_time)
 
@@ -289,3 +266,13 @@ def open_web() -> bool:
         return False
     else:
         return True
+
+
+def sanitize_phone_number(phone_no: str) -> str:
+    """Ensures the phone number is valid and returns a sanitized string or raises"""
+    if not core.check_number(number=phone_no):
+        raise exceptions.CountryCodeException("Country Code Missing in Phone Number")
+    phone_no = phone_no.replace(" ", "")
+    if not fullmatch(r"^\+?[0-9]{2,4}\s?[0-9]{9,15}", phone_no):
+        raise exceptions.InvalidPhoneNumber("Invalid Phone Number")
+    return phone_no
